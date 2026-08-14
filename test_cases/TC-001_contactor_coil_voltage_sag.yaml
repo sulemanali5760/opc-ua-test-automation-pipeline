@@ -1,0 +1,24 @@
+test_id: TC-001
+title: Contactor coil control voltage under inrush load
+author: Suleman Ali
+hypothesis: >
+  Under an 80A inrush event at contactor closure, the control transformer
+  is undersized for the feeder, causing coil control voltage to sag below
+  the manufacturer's 20V minimum hold-in spec. A sag this deep risks
+  contactor chatter / failure to seal under load.
+procedure:
+  - Energise the contactor from the OPEN state and hold CLOSED for 5s.
+  - Sample CoilVoltage_V, CurrentDraw_A and FaultFlag from the PLC at 1Hz
+    for the full transient (opc_ua_client.py --duration 15).
+  - Isolate the window where CurrentDraw_A > 60A (inrush window).
+  - Within that window, compare the minimum CoilVoltage_V sample against
+    the spec floor below.
+variable: CoilVoltage_V
+condition_variable: CurrentDraw_A
+condition_min: 60.0
+spec:
+  min: 20.0
+  units: V
+expected_result: >
+  CoilVoltage_V does not drop below 20.0V at any point while
+  CurrentDraw_A exceeds 60A.
