@@ -10,7 +10,9 @@ hypothesis: >
 procedure:
   - Load twincat3-pickplace-framework onto a TwinCAT runtime and set it to Run.
   - Confirm fbOpMode.Mode is eAutomatic so the sequence is executing.
-  - Sample MAIN.fbMachine.fbHandling.fbCycle.Step over several full cycles.
+  - Sample MAIN.fbMachine.fbHandling.fbCycle.nStep over several full cycles.
+  - Note nStep, not the Step property: ADS reads memory symbols, and a
+    PROPERTY is a getter method with no address, so it cannot be read.
   - Check the step index stays inside the range the sequence defines.
 
 # Beckhoff ADS instead of OPC UA. TF6100 (the OPC UA server) is a licensed
@@ -20,9 +22,9 @@ target:
   ams_net_id: 127.0.0.1.1.1        # replace with your PLC's AMS NetId
   ams_port: 851                    # TwinCAT 3 runtime
   variables:
-    - MAIN.fbMachine.fbHandling.fbCycle.Step
+    - MAIN.fbMachine.fbHandling.fbCycle.nStep
 
-variable: MAIN.fbMachine.fbHandling.fbCycle.Step
+variable: MAIN.fbMachine.fbHandling.fbCycle.nStep
 
 spec:
   min: 0
@@ -37,4 +39,4 @@ on_failure: >
   Check whether a cylinder is failing to reach an end position — with
   bSimulate FALSE that means real sensor wiring; with bSimulate TRUE it means
   the simulated stroke time is not elapsing. FB_CycleManager latches bError on
-  a command returning eError, so read fbCycle.Error alongside this.
+  a command returning eError, so read fbCycle.bError alongside this.
