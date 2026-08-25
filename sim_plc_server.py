@@ -21,7 +21,7 @@ import time
 from asyncua import Server, ua
 
 ENDPOINT = "opc.tcp://127.0.0.1:4855/plc/"
-NAMESPACE = "http://mbition-demo.local/plc"
+NAMESPACE = "http://panel-demo.local/plc"
 
 
 async def main():

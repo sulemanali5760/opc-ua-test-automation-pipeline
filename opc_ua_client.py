@@ -26,7 +26,7 @@ from pathlib import Path
 from asyncua import Client
 
 DEFAULT_ENDPOINT = "opc.tcp://localhost:4855/plc/"
-NAMESPACE = "http://mbition-demo.local/plc"
+NAMESPACE = "http://panel-demo.local/plc"
 VARIABLES = [
     "CoilVoltage_V",
     "CurrentDraw_A",
