@@ -51,10 +51,19 @@ REPORTS_DIR = Path(__file__).parent / "reports"
 
 
 def load_test_case(path) -> dict:
-    """Read a test case YAML and fill in target defaults."""
+    """Read a test case YAML and fill in target defaults.
+
+    A target declaring `protocol: ads` is left alone — the OPC UA defaults
+    (namespace, node_path) mean nothing to ADS and merging them in would only
+    produce confusing keys.
+    """
     test_case = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    target = dict(DEFAULT_TARGET)
-    target.update(test_case.get("target") or {})
+    declared = test_case.get("target") or {}
+    if declared.get("protocol") == "ads":
+        target = declared
+    else:
+        target = dict(DEFAULT_TARGET)
+        target.update(declared)
     test_case["target"] = target
     return test_case
 
@@ -178,11 +187,18 @@ async def main():
 
     test_case = load_test_case(args.test_case)
     test_id = test_case["test_id"]
+    target = test_case["target"]
+    watch = [test_case["variable"], test_case.get("condition_variable")]
 
-    run = await acquire(
-        args.endpoint, args.duration, args.hz, test_case["target"],
-        watch=[test_case["variable"], test_case.get("condition_variable")],
-    )
+    # The protocol is a property of the machine, so it lives in the test case
+    # rather than on the command line. Everything after this point is identical
+    # either way — that is the whole point of keeping evaluate() pure.
+    if target.get("protocol") == "ads":
+        import ads_backend
+        run = ads_backend.acquire(target, args.duration, args.hz, watch=watch)
+    else:
+        run = await acquire(args.endpoint, args.duration, args.hz, target,
+                            watch=watch)
     run["evaluation"] = {test_id: evaluate(run["samples"], test_case)}
 
     REPORTS_DIR.mkdir(exist_ok=True)

@@ -1,0 +1,40 @@
+test_id: TC-003
+title: Pick-and-place unit completes its cycle within the expected step count
+author: Suleman Ali
+hypothesis: >
+  The handling unit's sequence should advance through its seven steps and
+  restart, without stalling. If a cylinder fails to reach an end position the
+  CycleManager holds on that step and the step number stops climbing, so the
+  step index is a direct measure of whether the sequence is alive.
+
+procedure:
+  - Load twincat3-pickplace-framework onto a TwinCAT runtime and set it to Run.
+  - Confirm fbOpMode.Mode is eAutomatic so the sequence is executing.
+  - Sample MAIN.fbMachine.fbHandling.fbCycle.Step over several full cycles.
+  - Check the step index stays inside the range the sequence defines.
+
+# Beckhoff ADS instead of OPC UA. TF6100 (the OPC UA server) is a licensed
+# option and is often not enabled; ADS is always available.
+target:
+  protocol: ads
+  ams_net_id: 127.0.0.1.1.1        # replace with your PLC's AMS NetId
+  ams_port: 851                    # TwinCAT 3 runtime
+  variables:
+    - MAIN.fbMachine.fbHandling.fbCycle.Step
+
+variable: MAIN.fbMachine.fbHandling.fbCycle.Step
+
+spec:
+  min: 0
+  max: 7
+  units: step
+
+expected_result: >
+  The step index stays between 0 and 7 for the whole run. A value outside that
+  band means the CycleManager is in a state the sequence does not define.
+
+on_failure: >
+  Check whether a cylinder is failing to reach an end position — with
+  bSimulate FALSE that means real sensor wiring; with bSimulate TRUE it means
+  the simulated stroke time is not elapsing. FB_CycleManager latches bError on
+  a command returning eError, so read fbCycle.Error alongside this.

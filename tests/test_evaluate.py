@@ -100,15 +100,23 @@ def test_band_spec(temps, expected):
 
 # --- the shipped test cases stay loadable and correctly wired ---------------
 
-@pytest.mark.parametrize("name", [
-    "TC-001_contactor_coil_voltage_sag.yaml",
-    "TC-002_panel_temperature_band.yaml",
-])
+SHIPPED_CASES = sorted(p.name for p in (REPO / "test_cases").glob("TC-*.yaml"))
+
+
+def test_there_are_shipped_test_cases_to_check():
+    """Guard the glob below — an empty list would make it vacuously pass."""
+    assert SHIPPED_CASES
+
+
+@pytest.mark.parametrize("name", SHIPPED_CASES)
 def test_shipped_test_cases_load_with_targets(name):
     tc = load_test_case(REPO / "test_cases" / name)
     assert tc["test_id"]
     assert tc["variable"] in tc["target"]["variables"]
-    assert tc["target"]["node_path"]
+    # node_path addresses a node in an OPC UA tree; ADS reads flat symbol
+    # names and has no equivalent.
+    if tc["target"].get("protocol") != "ads":
+        assert tc["target"]["node_path"]
 
 
 def test_condition_variable_is_also_sampled():
