@@ -115,3 +115,24 @@ def test_condition_variable_is_also_sampled():
     """A test case must sample the variable its own condition depends on."""
     tc = load_test_case(REPO / "test_cases" / "TC-001_contactor_coil_voltage_sag.yaml")
     assert tc["condition_variable"] in tc["target"]["variables"]
+
+
+# --- an unfinished test case must not report PASS ---------------------------
+
+def test_spec_with_no_limits_is_refused():
+    """A generated stub whose limits were never filled in checks nothing.
+
+    Reporting PASS there would be indistinguishable from a real pass, so
+    evaluate() refuses rather than rubber-stamping it.
+    """
+    stub = {"test_id": "TC-Stub", "variable": "CoilVoltage_V", "spec": {"units": "V"}}
+    samples = [sample(0, CoilVoltage_V=18.0)]
+    with pytest.raises(ValueError, match="neither spec.min nor spec.max"):
+        evaluate(samples, stub)
+
+
+def test_missing_spec_block_is_refused_too():
+    stub = {"test_id": "TC-Stub", "variable": "CoilVoltage_V"}
+    samples = [sample(0, CoilVoltage_V=18.0)]
+    with pytest.raises(ValueError):
+        evaluate(samples, stub)

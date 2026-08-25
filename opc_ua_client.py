@@ -106,6 +106,16 @@ def evaluate(samples: list, test_case: dict) -> dict:
 
     min_observed = min(values)
     max_observed = max(values)
+
+    if spec_min is None and spec_max is None:
+        # An unfinished test case — a generated stub whose limits were never
+        # filled in, say. Reporting PASS here would mean "nothing was checked"
+        # and look identical to a real pass, so refuse instead.
+        raise ValueError(
+            f"test case {test_case.get('test_id', '?')} sets neither spec.min "
+            "nor spec.max, so there is nothing to check. Fill in a limit."
+        )
+
     passed = True
     if spec_min is not None:
         passed = passed and min_observed >= spec_min
