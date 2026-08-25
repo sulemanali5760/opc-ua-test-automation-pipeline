@@ -29,13 +29,24 @@ jobs:
       # bundled simulator, so this proves the whole chain on every push.
       - name: Start simulated PLC
         run: |
-          python sim_plc_server.py > sim.log 2>&1 &
+          python -u sim_plc_server.py > sim.log 2>&1 &
           echo $! > sim.pid
-          for i in $(seq 1 30); do
-            if grep -q "Simulated PLC server running" sim.log; then exit 0; fi
-            sleep 1
-          done
-          echo "simulator did not start"; cat sim.log; exit 1
+          # Wait on the port, not on a log line: the server prints its banner
+          # before it starts listening, so the banner proves nothing.
+          if ! python - <<'PY'
+          import socket, sys, time
+          for _ in range(60):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4855), timeout=1):
+                      print("simulator accepting connections")
+                      sys.exit(0)
+              except OSError:
+                  time.sleep(1)
+          sys.exit("simulator never opened port 4855")
+          PY
+          then
+            echo "--- sim.log ---"; cat sim.log; exit 1
+          fi
 
       - name: TC-001 must FAIL (coil voltage sags under inrush)
         run: |
