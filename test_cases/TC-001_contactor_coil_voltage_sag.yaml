@@ -22,3 +22,7 @@ spec:
 expected_result: >
   CoilVoltage_V does not drop below 20.0V at any point while
   CurrentDraw_A exceeds 60A.
+on_failure: >
+  Consistent with an undersized control transformer failing to hold coil
+  voltage under inrush. Check the transformer VA rating against the summed
+  coil inrush of the feeder.

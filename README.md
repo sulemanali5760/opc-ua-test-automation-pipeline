@@ -1,5 +1,7 @@
 # OPC UA Test Automation Pipeline
 
+[![CI](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml)
+
 A small, runnable pipeline for pulling live process data off a PLC over
 OPC UA, checking it against a written test-case spec, and generating a
 pass/fail test report — instead of just eyeballing a trend chart.
@@ -44,24 +46,81 @@ pip install -r requirements.txt
 python sim_plc_server.py
 
 # terminal 2 — sample for 15s, covering the energise transient at t=5s
-python opc_ua_client.py --duration 15
+python opc_ua_client.py --test-case test_cases/TC-001_contactor_coil_voltage_sag.yaml --duration 15
 
 # generate the readable report from the run you just captured
 python test_case_generator.py test_cases/TC-001_contactor_coil_voltage_sag.yaml reports/run_<timestamp>.json
 ```
 
 Expected result: `TC-001` reports **FAIL**, with the observed minimum coil
-voltage (~18V) and the 20V spec floor both printed in the report.
+voltage (~18V) and the 20V spec floor both printed in the report. Run
+`TC-002` the same way and it reports **PASS** — both verdicts are asserted
+in CI on every push.
+
+## Point it at your own machine
+
+Nothing machine-specific lives in the Python. A test case declares what to
+connect to and what to check, so using this on your own PLC means writing one
+YAML file — no code changes:
+
+```yaml
+test_id: TC-010
+title: Spindle bearing temperature under continuous cut
+author: you
+hypothesis: >
+  Bearing temperature stays inside its rating during a 30-minute cut.
+procedure:
+  - Run the spindle at 8000 rpm for 30 minutes and sample throughout.
+variable: BearingTemp_C
+condition_variable: SpindleSpeed_rpm   # optional — omit to evaluate the whole run
+condition_min: 7500.0
+spec:
+  max: 80.0        # `min`, `max`, or both
+  units: C
+expected_result: >
+  BearingTemp_C never exceeds 80C while the spindle is above 7500 rpm.
+on_failure: >
+  Check lubrication and bearing preload.        # optional note, shown on FAIL
+
+target:                                  # optional — defaults to this repo's simulator
+  namespace: http://your-plc.local/plc
+  node_path: [Machine, Spindle]          # browse path under Objects
+  variables: [BearingTemp_C, SpindleSpeed_rpm]
+```
+
+Then:
+
+```bash
+python opc_ua_client.py --test-case my_case.yaml --endpoint opc.tcp://192.168.0.10:4840/plc/ --duration 1800 --hz 0.5
+```
+
+`condition_variable` is what makes a test meaningful on a running machine: it
+isolates the window you actually care about, so a reading that dips while the
+machine is idle does not fail a test about behaviour under load.
 
 ## Project structure
 
 ```
-sim_plc_server.py      simulated OPC UA PLC (swap for a real endpoint)
+sim_plc_server.py       simulated OPC UA PLC (swap for a real endpoint)
 opc_ua_client.py        acquisition + spec-check client
 test_case_generator.py  test case + run -> Markdown report
-test_cases/              written test case definitions (YAML)
-reports/                 generated run logs (JSON) and reports (Markdown)
+test_cases/             written test case definitions (YAML)
+tests/                  unit tests for the evaluation logic
+reports/                generated run logs (JSON) and reports (Markdown)
+.github/workflows/      CI: unit tests + end-to-end run against the simulator
 ```
+
+## Tests
+
+```bash
+pip install pytest
+pytest -q
+```
+
+The unit tests cover the evaluation logic with no PLC or network involved.
+CI additionally runs the real pipeline against the bundled simulator and
+asserts that TC-001 comes back FAIL and TC-002 comes back PASS — if the
+chain ever stops working, the badge goes red.
 
 ## Why it's built this way
 
@@ -79,3 +138,7 @@ session.
 - [`asyncua`](https://github.com/FreeOpcUa/opcua-asyncio) for the OPC UA
   client/server
 - `pyyaml` for test case definitions
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Use it, change it, ship it.

@@ -1,0 +1,24 @@
+test_id: TC-002
+title: Panel internal temperature stays within its operating band
+author: Suleman Ali
+hypothesis: >
+  Panel internal temperature should stay inside the 15-30C band across the
+  whole energise cycle. A contactor bank switching an 80A feeder is a heat
+  source; if the enclosure is undersized or unventilated, the transient
+  would show up as a temperature excursion.
+procedure:
+  - Sample Temperature_C for at least one full energise cycle.
+  - Evaluate over the whole run, not just the inrush window - a thermal
+    problem shows up after the event, not during it.
+  - Compare the observed range against the band below.
+variable: Temperature_C
+# No condition_variable: this one is evaluated over every sample in the run.
+spec:
+  min: 15.0
+  max: 30.0
+  units: C
+expected_result: >
+  Temperature_C stays between 15.0C and 30.0C for the whole run.
+on_failure: >
+  Check enclosure ventilation and the thermal rating of the components
+  nearest the contactor bank.

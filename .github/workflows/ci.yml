@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Unit tests
+        run: pytest -q
+
+      # The point of the end-to-end job: the pipeline is only worth anything if
+      # a written spec really does come back FAIL against a machine that
+      # breaches it, and PASS against one that does not. Both run against the
+      # bundled simulator, so this proves the whole chain on every push.
+      - name: Start simulated PLC
+        run: |
+          python sim_plc_server.py > sim.log 2>&1 &
+          echo $! > sim.pid
+          for i in $(seq 1 30); do
+            if grep -q "Simulated PLC server running" sim.log; then exit 0; fi
+            sleep 1
+          done
+          echo "simulator did not start"; cat sim.log; exit 1
+
+      - name: TC-001 must FAIL (coil voltage sags under inrush)
+        run: |
+          python opc_ua_client.py \
+            --test-case test_cases/TC-001_contactor_coil_voltage_sag.yaml \
+            --endpoint opc.tcp://127.0.0.1:4855/plc/ --duration 14 --hz 4 --out reports/tc001.json
+          python test_case_generator.py \
+            test_cases/TC-001_contactor_coil_voltage_sag.yaml reports/tc001.json \
+            --out reports/tc001.md
+          python - <<'PY'
+          import json, sys
+          e = json.load(open("reports/tc001.json"))["evaluation"]["TC-001"]
+          print(e)
+          assert e["window_found"], "inrush window never captured"
+          assert e["passed"] is False, f"TC-001 should FAIL, got {e['passed']}"
+          assert e["min_observed"] < 20.0, e["min_observed"]
+          PY
+
+      - name: TC-002 must PASS (panel temperature stays in band)
+        run: |
+          python opc_ua_client.py \
+            --test-case test_cases/TC-002_panel_temperature_band.yaml \
+            --endpoint opc.tcp://127.0.0.1:4855/plc/ --duration 8 --hz 2 --out reports/tc002.json
+          python test_case_generator.py \
+            test_cases/TC-002_panel_temperature_band.yaml reports/tc002.json \
+            --out reports/tc002.md
+          python - <<'PY'
+          import json
+          e = json.load(open("reports/tc002.json"))["evaluation"]["TC-002"]
+          print(e)
+          assert e["passed"] is True, f"TC-002 should PASS, got {e['passed']}"
+          PY
+
+      - name: Stop simulator
+        if: always()
+        run: kill "$(cat sim.pid)" 2>/dev/null || true
+
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: reports/*.md
+          if-no-files-found: warn

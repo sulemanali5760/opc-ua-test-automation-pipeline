@@ -54,20 +54,41 @@ def generate_report(test_case: dict, run: dict) -> str:
     ]
 
     if evaluation and evaluation["window_found"]:
-        lines += [
-            f"- Condition window (`{test_case['condition_variable']} >= "
-            f"{test_case['condition_min']}`): {evaluation['window_samples']} samples",
-            f"- Minimum `{test_case['variable']}` observed in window: "
-            f"**{evaluation['min_observed']:.2f} {test_case['spec']['units']}**",
-            f"- Spec floor: {evaluation['spec_min']} {test_case['spec']['units']}",
-        ]
-        if not evaluation["passed"]:
-            deficit = evaluation["spec_min"] - evaluation["min_observed"]
+        units = test_case.get("spec", {}).get("units", "")
+        variable = test_case["variable"]
+        condition_variable = test_case.get("condition_variable")
+
+        if condition_variable:
             lines.append(
-                f"- **Deficit: {deficit:.2f} {test_case['spec']['units']} below spec** "
-                "— consistent with an undersized control transformer failing to "
-                "hold coil voltage under inrush."
+                f"- Condition window (`{condition_variable} >= "
+                f"{test_case['condition_min']}`): {evaluation['window_samples']} samples"
             )
+        else:
+            lines.append(f"- Evaluated over the whole run: {evaluation['window_samples']} samples")
+
+        if evaluation["spec_min"] is not None:
+            lines.append(
+                f"- Minimum `{variable}` observed: "
+                f"**{evaluation['min_observed']:.2f} {units}** "
+                f"(spec floor {evaluation['spec_min']} {units})"
+            )
+        if evaluation["spec_max"] is not None:
+            lines.append(
+                f"- Maximum `{variable}` observed: "
+                f"**{evaluation['max_observed']:.2f} {units}** "
+                f"(spec ceiling {evaluation['spec_max']} {units})"
+            )
+
+        if not evaluation["passed"]:
+            if evaluation["spec_min"] is not None and evaluation["min_observed"] < evaluation["spec_min"]:
+                margin = evaluation["spec_min"] - evaluation["min_observed"]
+                lines.append(f"- **{margin:.2f} {units} below the spec floor**")
+            if evaluation["spec_max"] is not None and evaluation["max_observed"] > evaluation["spec_max"]:
+                margin = evaluation["max_observed"] - evaluation["spec_max"]
+                lines.append(f"- **{margin:.2f} {units} above the spec ceiling**")
+            note = test_case.get("on_failure")
+            if note:
+                lines.append(f"- {note.strip()}")
     else:
         lines.append("- Condition window never occurred during this run — re-run with a longer duration.")
 
