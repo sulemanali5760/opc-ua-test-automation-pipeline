@@ -2,6 +2,12 @@
 
 [![CI](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml)
 
+### ▶ [Watch it run in your browser](https://sulemanali5760.github.io/opc-ua-test-automation-pipeline/)
+
+No install. The fault happens, the tool measures it, and the verdict appears —
+live, on simulated data. Drag the transformer slider to turn the FAIL into a
+PASS and watch why.
+
 A small, runnable pipeline for pulling live process data off a PLC over
 OPC UA, checking it against a written test-case spec, and generating a
 pass/fail test report — instead of just eyeballing a trend chart.

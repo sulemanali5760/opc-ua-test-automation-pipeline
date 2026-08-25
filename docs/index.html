@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live demo — OPC UA Test Automation Pipeline</title>
+<meta name="description" content="Watch a control panel fault happen, get measured, and get judged against a written spec — live in your browser.">
+<style>
+  :root {
+    --bg:#0f1115; --panel:#161922; --panel-2:#1c2029; --border:#262b38;
+    --text:#e6e8ee; --muted:#9aa1b1; --dim:#6b7280;
+    --accent:#ff8a3d; --ok:#3ddc97; --warn:#ffc857; --bad:#ff5c5c; --volt:#6ea8fe;
+    --radius:12px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg:#f7f8fa; --panel:#ffffff; --panel-2:#f0f2f6; --border:#dfe3ea;
+      --text:#12141a; --muted:#5b6472; --dim:#8b93a1;
+      --volt:#2563eb; --ok:#0f9d63; --warn:#b7791f; --bad:#d63b3b;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:2rem 1.25rem 4rem}
+  header{margin-bottom:1.5rem}
+  h1{font-size:clamp(1.6rem,4vw,2.2rem);margin:0 0 .4rem;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:0 0 .25rem;max-width:60ch}
+  .backlink{font-size:.9rem}
+  a{color:var(--accent)}
+
+  .controls{
+    display:flex;gap:1rem;align-items:center;flex-wrap:wrap;
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:.9rem 1.1rem;margin:1.25rem 0;
+  }
+  button{
+    font:inherit;font-weight:600;font-size:.9rem;cursor:pointer;
+    background:transparent;color:var(--accent);
+    border:1px solid var(--accent);border-radius:8px;padding:.4rem .9rem;
+  }
+  button:hover{background:var(--accent);color:var(--bg)}
+  .slider-group{display:flex;flex-direction:column;gap:.15rem;flex:1;min-width:250px}
+  .slider-group label{font-size:.82rem;color:var(--muted)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .hint{font-size:.82rem;color:var(--dim)}
+
+  .flow{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;align-items:stretch}
+  @media (max-width:860px){.flow{grid-template-columns:1fr}}
+  .card{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius);padding:1.1rem;display:flex;flex-direction:column;
+  }
+  .step{
+    font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim);margin-bottom:.15rem;
+  }
+  .card h2{font-size:1.05rem;margin:0 0 .1rem}
+  .plain{font-size:.86rem;color:var(--muted);margin:.35rem 0 .9rem}
+
+  /* --- panel 1: the machine --- */
+  .readouts{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.8rem}
+  .ro{background:var(--panel-2);border:1px solid var(--border);border-radius:9px;padding:.6rem .7rem}
+  .ro .k{font-size:.72rem;color:var(--muted);display:block}
+  .ro .v{font-size:1.5rem;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .ro .u{font-size:.8rem;color:var(--muted);font-weight:400}
+  .state{
+    display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:600;
+    padding:.25rem .6rem;border-radius:99px;border:1px solid var(--border);
+    background:var(--panel-2);
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+  .lbl{font-size:9px;fill:var(--muted)}
+
+  /* --- panel 2: the check --- */
+  .rule{
+    background:var(--panel-2);border-left:3px solid var(--accent);
+    border-radius:0 8px 8px 0;padding:.55rem .75rem;font-size:.84rem;margin-bottom:.7rem;
+  }
+  .rule b{color:var(--text)}
+  .tracker{display:flex;justify-content:space-between;font-size:.84rem;margin-top:.6rem}
+  .tracker span:last-child{font-variant-numeric:tabular-nums;font-weight:650}
+
+  /* --- panel 3: verdict --- */
+  .verdict{
+    text-align:center;padding:1rem .5rem;border-radius:10px;
+    border:1px solid var(--border);background:var(--panel-2);margin-bottom:.9rem;
+  }
+  .verdict .big{font-size:2rem;font-weight:750;letter-spacing:-.02em;line-height:1.15}
+  .verdict .cap{font-size:.8rem;color:var(--muted)}
+  .pass{color:var(--ok)} .fail{color:var(--bad)} .pending{color:var(--dim)}
+  .rows{font-size:.86rem}
+  .row{display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px dashed var(--border)}
+  .row:last-child{border-bottom:none}
+  .row span:last-child{font-variant-numeric:tabular-nums;font-weight:600}
+
+  .meaning{
+    margin-top:1.25rem;background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius);padding:1.1rem 1.25rem;
+  }
+  .meaning h3{margin:0 0 .4rem;font-size:1rem}
+  .meaning p{margin:.4rem 0;color:var(--muted);font-size:.92rem}
+  .meaning strong{color:var(--text)}
+  footer{margin-top:2rem;font-size:.85rem;color:var(--dim);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Watch a fault get caught</h1>
+    <p class="sub">
+      This is the pipeline running, live, on simulated data. A contactor switches
+      a large motor on; something goes wrong; the tool measures it and decides
+      pass or fail against a written specification.
+    </p>
+    <p class="backlink"><a href="https://github.com/sulemanali5760/opc-ua-test-automation-pipeline">← back to the repository</a></p>
+  </header>
+
+  <div class="controls">
+    <button id="playBtn">Pause</button>
+    <div class="slider-group">
+      <label for="vaSlider">Control transformer size — <b id="vaLabel">160 VA</b></label>
+      <input type="range" id="vaSlider" min="80" max="400" step="10" value="160">
+      <span class="hint">Drag it. A bigger transformer holds the voltage up — and flips the verdict.</span>
+    </div>
+  </div>
+
+  <div class="flow">
+
+    <!-- ---------- 1. THE MACHINE ---------- -->
+    <section class="card">
+      <span class="step">1 — where the data comes from</span>
+      <h2>The machine</h2>
+      <p class="plain">
+        A <b>contactor</b> is a big switch. An electromagnet (its “coil”) pulls it
+        closed and holds it there. Closing it makes the motor gulp a huge surge
+        of current for a moment.
+      </p>
+
+      <div class="readouts">
+        <div class="ro">
+          <span class="k">Coil voltage</span>
+          <span class="v" id="voltVal" style="color:var(--volt)">24.0</span><span class="u"> V</span>
+        </div>
+        <div class="ro">
+          <span class="k">Current draw</span>
+          <span class="v" id="ampVal" style="color:var(--accent)">0.0</span><span class="u"> A</span>
+        </div>
+      </div>
+
+      <svg viewBox="0 0 240 120" aria-label="Contactor schematic">
+        <!-- supply rail -->
+        <line x1="20" y1="20" x2="220" y2="20" stroke="var(--border)" stroke-width="2"/>
+        <text class="lbl" x="20" y="14">supply</text>
+        <!-- contacts -->
+        <line x1="70" y1="20" x2="70" y2="45" stroke="var(--border)" stroke-width="2"/>
+        <line id="bladeA" x1="70" y1="45" x2="95" y2="62" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+        <line x1="95" y1="70" x2="95" y2="100" stroke="var(--border)" stroke-width="2"/>
+        <circle id="motor" cx="95" cy="108" r="9" fill="none" stroke="var(--border)" stroke-width="2"/>
+        <text class="lbl" x="108" y="112">motor</text>
+        <!-- coil -->
+        <rect id="coilBox" x="150" y="45" width="46" height="30" rx="5"
+              fill="var(--panel-2)" stroke="var(--border)" stroke-width="2"/>
+        <text class="lbl" x="158" y="64">coil</text>
+        <line x1="173" y1="20" x2="173" y2="45" stroke="var(--border)" stroke-width="2"/>
+        <line x1="173" y1="75" x2="173" y2="100" stroke="var(--border)" stroke-width="2"/>
+        <line x1="20" y1="100" x2="220" y2="100" stroke="var(--border)" stroke-width="2"/>
+        <line x1="20" y1="20" x2="20" y2="100" stroke="var(--border)" stroke-width="2"/>
+      </svg>
+
+      <div style="margin-top:.7rem">
+        <span class="state"><span class="dot" id="stateDot"></span><span id="stateTxt">OPEN</span></span>
+      </div>
+    </section>
+
+    <!-- ---------- 2. THE CHECK ---------- -->
+    <section class="card">
+      <span class="step">2 — what the tool does</span>
+      <h2>The check</h2>
+      <p class="plain">
+        The tool reads both values several times a second over the network, then
+        looks only at the moment that actually matters.
+      </p>
+
+      <div class="rule">
+        <b>The written rule:</b> while current is above <b>60&nbsp;A</b>, coil
+        voltage must never fall below <b>20&nbsp;V</b>.
+      </div>
+
+      <svg viewBox="0 0 300 130" id="chart" aria-label="Live trace of coil voltage and current">
+        <rect id="windowBand" x="0" y="8" width="0" height="96" fill="var(--accent)" opacity="0.12"/>
+        <line x1="0" y1="0" x2="0" y2="0" id="specLine" stroke="var(--bad)"
+              stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text class="lbl" id="specLabel" x="2" y="0">20 V limit</text>
+        <polyline id="voltTrace" fill="none" stroke="var(--volt)" stroke-width="2"
+                  stroke-linejoin="round" points=""/>
+        <polyline id="ampTrace" fill="none" stroke="var(--accent)" stroke-width="1.5"
+                  stroke-linejoin="round" opacity="0.75" points=""/>
+        <line x1="0" y1="104" x2="300" y2="104" stroke="var(--border)" stroke-width="1"/>
+      </svg>
+
+      <div class="tracker">
+        <span style="color:var(--muted)">Samples inside the window</span>
+        <span id="winCount">0</span>
+      </div>
+      <div class="tracker">
+        <span style="color:var(--muted)">Lowest voltage seen there</span>
+        <span id="minVolt">—</span>
+      </div>
+    </section>
+
+    <!-- ---------- 3. THE VERDICT ---------- -->
+    <section class="card">
+      <span class="step">3 — what comes out</span>
+      <h2>The verdict</h2>
+      <p class="plain">
+        At the end of each run the tool writes a report a colleague can read in
+        thirty seconds — the number measured, the limit, and the gap.
+      </p>
+
+      <div class="verdict">
+        <div class="big pending" id="verdictBig">…</div>
+        <div class="cap" id="verdictCap">waiting for the surge</div>
+      </div>
+
+      <div class="rows">
+        <div class="row"><span>Test case</span><span>TC-001</span></div>
+        <div class="row"><span>Measured minimum</span><span id="rMin">—</span></div>
+        <div class="row"><span>Specification</span><span>≥ 20.0 V</span></div>
+        <div class="row"><span>Margin</span><span id="rMargin">—</span></div>
+      </div>
+
+      <p class="plain" id="explain" style="margin-top:.9rem">
+        Run in progress…
+      </p>
+    </section>
+  </div>
+
+  <div class="meaning">
+    <h3>Why this matters, in plain words</h3>
+    <p>
+      When the motor surges, it drags the whole supply down for a moment — including
+      the small voltage feeding the contactor's own coil. If that dips too far, the
+      electromagnet lets go. The switch <strong>chatters or drops out</strong>, the
+      motor stops, and the line halts for a reason nobody can see afterwards.
+    </p>
+    <p>
+      It is easy to miss, because everything looks perfectly normal a second later.
+      That is the point of measuring against a written limit instead of watching a
+      graph: the tool checks the <strong>exact two seconds that matter</strong> and
+      writes down what it found.
+    </p>
+    <p>
+      This page simulates the data. The real tool reads it from a PLC over
+      <strong>OPC UA</strong>, a standard industrial protocol — and a browser cannot
+      speak that, which is exactly why this is a simulation.
+    </p>
+  </div>
+
+  <footer>
+    Simulated data, real logic — the rule check mirrors <code>evaluate()</code> in the repository.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var SPEC_MIN = 20.0, COND_MIN = 60.0, NOMINAL = 24.0;
+  var PERIOD = 12, T_CLOSE = 5, T_OPEN_AGAIN = 7;
+  var CHART_W = 300, CHART_TOP = 8, CHART_BOT = 104;
+
+  var el = function (id) { return document.getElementById(id); };
+  var voltVal = el("voltVal"), ampVal = el("ampVal"),
+      stateDot = el("stateDot"), stateTxt = el("stateTxt"),
+      bladeA = el("bladeA"), motor = el("motor"), coilBox = el("coilBox"),
+      voltTrace = el("voltTrace"), ampTrace = el("ampTrace"),
+      windowBand = el("windowBand"), specLine = el("specLine"), specLabel = el("specLabel"),
+      winCount = el("winCount"), minVolt = el("minVolt"),
+      verdictBig = el("verdictBig"), verdictCap = el("verdictCap"),
+      rMin = el("rMin"), rMargin = el("rMargin"), explain = el("explain"),
+      playBtn = el("playBtn"), vaSlider = el("vaSlider"), vaLabel = el("vaLabel");
+
+  // Bigger transformer -> less sag. 80 VA sags 8.5 V, 400 VA barely moves.
+  function sagFor(va) { return Math.max(0.6, 8.5 * Math.pow(80 / va, 0.85)); }
+
+  var running = true, t = 0, last = null;
+  var samples = [], windowVals = [], finished = false;
+
+  function scenario(time, sagMax) {
+    if (time < T_CLOSE) return { v: NOMINAL, a: 0, s: "OPEN" };
+    if (time < T_OPEN_AGAIN) {
+      var p = (time - T_CLOSE) / (T_OPEN_AGAIN - T_CLOSE);
+      var shape = Math.sin(Math.PI * p);
+      return { v: NOMINAL - sagMax * shape, a: 80 * shape, s: "CLOSING" };
+    }
+    return { v: NOMINAL, a: 4.5, s: "CLOSED" };
+  }
+
+  function yVolt(v) {  // 10..26 V mapped into the chart band
+    var f = (v - 10) / 16;
+    return CHART_BOT - Math.max(0, Math.min(1, f)) * (CHART_BOT - CHART_TOP);
+  }
+  function yAmp(a) {   // 0..90 A
+    return CHART_BOT - Math.max(0, Math.min(1, a / 90)) * (CHART_BOT - CHART_TOP);
+  }
+
+  function reset() {
+    samples = []; windowVals = []; finished = false;
+    voltTrace.setAttribute("points", "");
+    ampTrace.setAttribute("points", "");
+    windowBand.setAttribute("width", 0);
+    winCount.textContent = "0";
+    minVolt.textContent = "—";
+    rMin.textContent = "—";
+    rMargin.textContent = "—";
+    verdictBig.textContent = "…";
+    verdictBig.className = "big pending";
+    verdictCap.textContent = "waiting for the surge";
+    explain.textContent = "Run in progress…";
+  }
+
+  function paintSpecLine() {
+    var y = yVolt(SPEC_MIN);
+    specLine.setAttribute("x1", 0); specLine.setAttribute("x2", CHART_W);
+    specLine.setAttribute("y1", y); specLine.setAttribute("y2", y);
+    specLabel.setAttribute("y", y - 3);
+  }
+
+  function finish() {
+    finished = true;
+    if (!windowVals.length) {
+      verdictBig.textContent = "NO DATA";
+      verdictBig.className = "big pending";
+      verdictCap.textContent = "the surge never happened";
+      return;
+    }
+    var lo = Math.min.apply(null, windowVals);
+    var passed = lo >= SPEC_MIN;
+    var margin = lo - SPEC_MIN;
+
+    verdictBig.textContent = passed ? "PASS" : "FAIL";
+    verdictBig.className = "big " + (passed ? "pass" : "fail");
+    verdictCap.textContent = passed
+      ? "voltage held above the limit"
+      : "voltage fell below the limit";
+    rMin.textContent = lo.toFixed(1) + " V";
+    rMargin.textContent = (margin >= 0 ? "+" : "") + margin.toFixed(1) + " V";
+    rMargin.style.color = passed ? "var(--ok)" : "var(--bad)";
+
+    explain.innerHTML = passed
+      ? "The transformer is big enough. Even at full surge the coil kept <b>"
+        + lo.toFixed(1) + " V</b>, above the 20 V it needs to hold on."
+      : "The transformer is too small. At full surge the coil dropped to <b>"
+        + lo.toFixed(1) + " V</b> — <b>" + Math.abs(margin).toFixed(1)
+        + " V short</b> of what it needs to stay closed.";
+  }
+
+  function frame(now) {
+    if (last === null) last = now;
+    var dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+
+    if (running) {
+      var sagMax = sagFor(+vaSlider.value);
+      t += dt;
+      if (t >= PERIOD) { t = 0; reset(); }
+
+      var r = scenario(t, sagMax);
+
+      voltVal.textContent = r.v.toFixed(1);
+      ampVal.textContent = r.a.toFixed(1);
+      stateTxt.textContent = r.s;
+
+      var live = r.s === "OPEN" ? "var(--dim)"
+               : r.s === "CLOSING" ? "var(--warn)" : "var(--ok)";
+      stateDot.style.background = live;
+      voltVal.style.color = r.v < SPEC_MIN ? "var(--bad)" : "var(--volt)";
+
+      // contactor blade closes, coil and motor energise
+      var closed = r.s !== "OPEN";
+      bladeA.setAttribute("x2", closed ? "95" : "100");
+      bladeA.setAttribute("y2", closed ? "70" : "58");
+      coilBox.setAttribute("stroke", closed ? "var(--accent)" : "var(--border)");
+      motor.setAttribute("stroke", closed ? "var(--accent)" : "var(--border)");
+
+      samples.push({ t: t, v: r.v, a: r.a });
+      if (r.a >= COND_MIN) windowVals.push(r.v);
+
+      var vPts = [], aPts = [];
+      for (var i = 0; i < samples.length; i++) {
+        var x = (samples[i].t / PERIOD) * CHART_W;
+        vPts.push(x.toFixed(1) + "," + yVolt(samples[i].v).toFixed(1));
+        aPts.push(x.toFixed(1) + "," + yAmp(samples[i].a).toFixed(1));
+      }
+      voltTrace.setAttribute("points", vPts.join(" "));
+      ampTrace.setAttribute("points", aPts.join(" "));
+
+      // shade the stretch where current exceeded the threshold
+      var inWin = samples.filter(function (s) { return s.a >= COND_MIN; });
+      if (inWin.length) {
+        var x0 = (inWin[0].t / PERIOD) * CHART_W;
+        var x1 = (inWin[inWin.length - 1].t / PERIOD) * CHART_W;
+        windowBand.setAttribute("x", x0);
+        windowBand.setAttribute("width", Math.max(1, x1 - x0));
+      }
+
+      winCount.textContent = windowVals.length;
+      if (windowVals.length) {
+        var lo = Math.min.apply(null, windowVals);
+        minVolt.textContent = lo.toFixed(1) + " V";
+        minVolt.style.color = lo < SPEC_MIN ? "var(--bad)" : "var(--ok)";
+      }
+
+      if (!finished && t >= T_OPEN_AGAIN + 0.6) finish();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  playBtn.addEventListener("click", function () {
+    running = !running;
+    playBtn.textContent = running ? "Pause" : "Play";
+  });
+  vaSlider.addEventListener("input", function () {
+    vaLabel.textContent = vaSlider.value + " VA";
+    t = 0; reset();
+  });
+
+  paintSpecLine();
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
