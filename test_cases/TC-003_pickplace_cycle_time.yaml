@@ -11,7 +11,7 @@ procedure:
   - Load twincat3-pickplace-framework onto a TwinCAT runtime and set it to Run.
   - Confirm fbOpMode.Mode is eAutomatic so the sequence is executing.
   - Sample MAIN.fbMachine.fbHandling.fbCycle.nStep over several full cycles.
-  - Note nStep, not the Step property: ADS reads memory symbols, and a
+  - Note nStep, not the Step property. ADS reads memory symbols, and a
     PROPERTY is a getter method with no address, so it cannot be read.
   - Check the step index stays inside the range the sequence defines.
 
