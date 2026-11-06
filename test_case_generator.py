@@ -59,9 +59,10 @@ def generate_report(test_case: dict, run: dict) -> str:
         condition_variable = test_case.get("condition_variable")
 
         if condition_variable:
+            condition_min = test_case.get("condition_min", 0.0)
             lines.append(
                 f"- Condition window (`{condition_variable} >= "
-                f"{test_case['condition_min']}`): {evaluation['window_samples']} samples"
+                f"{condition_min}`): {evaluation['window_samples']} samples"
             )
         else:
             lines.append(f"- Evaluated over the whole run: {evaluation['window_samples']} samples")
