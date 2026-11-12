@@ -4,3 +4,7 @@ __pycache__/
 venv/
 reports/*.json
 !reports/.gitkeep
+*.egg-info/
+dist/
+build/
+reports/
