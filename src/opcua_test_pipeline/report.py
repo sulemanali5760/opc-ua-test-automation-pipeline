@@ -1,14 +1,14 @@
 """
 Generates a human-readable Markdown test report from a test case definition
-(test_cases/*.yaml) and a captured run log (reports/run_*.json produced by
-opc_ua_client.py).
+(examples/*.yaml) and a captured run log (reports/run_*.json produced by
+`opcua-test run`).
 
 This is the piece that turns a raw data pull into something a reviewer can
 read in thirty seconds: hypothesis, procedure, expected result, and the
 actual observed pass/fail with the evidence.
 
 Usage:
-    python test_case_generator.py test_cases/TC-001_contactor_coil_voltage_sag.yaml reports/run_20260101_120000.json
+    opcua-test report examples/TC-001_contactor_coil_voltage_sag.yaml reports/run_20260101_120000.json
 """
 
 import argparse
@@ -35,6 +35,8 @@ def generate_report(test_case: dict, run: dict) -> str:
         f"**Author:** {test_case.get('author', 'unknown')}",
         f"**Run acquired:** {run['acquired_at_utc']}",
         f"**Endpoint:** {run['endpoint']}",
+        f"**Samples:** {len(run.get('samples', []))} at {run.get('sample_hz', '?')} Hz"
+        + (f" ({run['late_samples']} taken late)" if run.get("late_samples") else ""),
         f"**Verdict:** **{verdict}**",
         "",
         "## Hypothesis",
@@ -95,12 +97,13 @@ def generate_report(test_case: dict, run: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(prog="opcua-test report",
+                                     description="Write a readable Markdown report from a test case and a run log.")
     parser.add_argument("test_case_yaml")
     parser.add_argument("run_json")
     parser.add_argument("--out", default=None)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     test_case = yaml.safe_load(Path(args.test_case_yaml).read_text(encoding="utf-8"))
     run = json.loads(Path(args.run_json).read_text(encoding="utf-8"))
@@ -111,6 +114,7 @@ def main():
     out_path.write_text(report, encoding="utf-8")
     print(report)
     print(f"Saved report to {out_path}")
+    return 0
 
 
 if __name__ == "__main__":

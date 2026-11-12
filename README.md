@@ -23,40 +23,61 @@ missed.
 ## What it does
 
 ```
-sim_plc_server.py  -->  opc_ua_client.py  -->  test_case_generator.py
-(simulated PLC)         (acquire + check        (readable pass/fail
-                          vs spec, save JSON)     Markdown report)
+opcua-test sim   -->   opcua-test run   -->   opcua-test report
+(simulated PLC)        (acquire + check       (readable pass/fail
+                        vs spec, save JSON)    Markdown report)
 ```
 
-1. **`sim_plc_server.py`** — a simulated OPC UA server exposing the process
+1. **`opcua-test sim`** — a simulated OPC UA server exposing the process
    variables you'd get off a real protection panel PLC (coil voltage,
    current draw, cycle time, temperature, pressure, contactor state, fault
    flag), replaying a scripted energise-under-inrush transient. Point
-   `opc_ua_client.py` at a real PLC's endpoint instead and nothing else in
+   `opcua-test run` at a real PLC's endpoint instead and nothing else in
    the pipeline changes.
-2. **`opc_ua_client.py`** — connects over OPC UA, samples the variables at
-   1Hz for a set duration, evaluates them against a spec condition (e.g.
+2. **`opcua-test run`** — connects over OPC UA, samples the variables at
+   1Hz (all in one request per sample, with the measured sample time) for a set duration, evaluates them against a spec condition (e.g.
    "coil voltage must not drop below 20V while current draw exceeds 60A"),
    and saves the full run + verdict as JSON to `reports/`.
-3. **`test_case_generator.py`** — takes a written test case
-   (`test_cases/*.yaml`: hypothesis, procedure, expected result) and a
+3. **`opcua-test report`** — takes a written test case
+   (`examples/*.yaml`: hypothesis, procedure, expected result) and a
    captured run, and produces a Markdown test report with the actual
    verdict and evidence.
+
+## Install
+
+With internet:
+
+```bash
+pip install https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/releases/download/v0.2.0/opcua_test_pipeline-0.2.0-py3-none-any.whl
+```
+
+Without internet (a plant PC, a commissioning laptop on the machine network): download the offline bundle
+for your system from the [latest release](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/releases/latest), carry
+it over on a USB stick, unzip it and run inside the folder:
+
+```bash
+python -m pip install --no-index --find-links . opcua-test-pipeline
+```
+
+The bundle holds this tool and every package it needs; nothing is downloaded. Each bundle is installed in a
+clean environment and started once before it is published. Python 3.11 or newer. Not on PyPI yet.
+
+For Beckhoff ADS add `pyads` (`pip install pyads`); it is not part of the bundle because it needs the TwinCAT ADS router.
 
 ## Quickstart
 
 ```bash
-pip install -r requirements.txt
-
 # terminal 1
-python sim_plc_server.py
+opcua-test sim
 
 # terminal 2 — sample for 15s, covering the energise transient at t=5s
-python opc_ua_client.py --test-case test_cases/TC-001_contactor_coil_voltage_sag.yaml --duration 15
+opcua-test run examples/TC-001_contactor_coil_voltage_sag.yaml --duration 15
 
 # generate the readable report from the run you just captured
-python test_case_generator.py test_cases/TC-001_contactor_coil_voltage_sag.yaml reports/run_<timestamp>.json
+opcua-test report examples/TC-001_contactor_coil_voltage_sag.yaml reports/run_<timestamp>.json
 ```
+
+Run logs and reports are written to `reports/` in the folder you run the command from.
 
 Expected result: `TC-001` reports **FAIL**, with the observed minimum coil
 voltage (~18V) and the 20V spec floor both printed in the report. Run
@@ -97,29 +118,58 @@ target:                                  # optional — defaults to this repo's 
 Then:
 
 ```bash
-python opc_ua_client.py --test-case my_case.yaml --endpoint opc.tcp://192.168.0.10:4840/plc/ --duration 1800 --hz 0.5
+opcua-test run my_case.yaml --endpoint opc.tcp://192.168.0.10:4840/plc/ --duration 1800 --hz 0.5
 ```
 
 `condition_variable` is what makes a test meaningful on a running machine: it
 isolates the window you actually care about, so a reading that dips while the
 machine is idle does not fail a test about behaviour under load.
 
+## Verdict as exit code
+
+`opcua-test run` exits with 0 for PASS, 1 for FAIL and 2 for NO DATA (the
+condition window never occurred), so a script or a CI job can act on the result
+without reading the report.
+
+## Limits
+
+- **Polling sees slow events only.** The client reads the PLC once per sample
+  (default 1 Hz, a few Hz at most over OPC UA). Anything shorter than about two
+  sample periods can be missed completely. A real contactor inrush lasts tens of
+  milliseconds; the simulator stretches the sag to two seconds so that the
+  workflow can be shown. On a real machine, let the PLC capture the fast event
+  (latch the minimum, or record a buffer in a fast task) and check that latched
+  value with a test case here.
+- **Few samples in the window means weak evidence.** The report prints how many
+  samples the verdict rests on. One sample is a hint, not a measurement.
+- **Sample times are the client's clock.** Each row carries the time it was
+  really read; if the server answers too slowly, the run log counts the late samples.
+- **No security.** The client connects anonymously without encryption. A PLC
+  that requires a certificate or a login cannot be read yet; to see what such a
+  server asks for, use [opcua-doctor](https://github.com/sulemanali5760/opcua-doctor).
+- **ADS path not run in CI.** The Beckhoff backend is unit-tested without a
+  controller; reading a real TwinCAT runtime needs one.
+- **One variable against fixed limits.** No rate-of-change, no comparison of two
+  signals, no statistics.
+
 ## Project structure
 
 ```
-sim_plc_server.py       simulated OPC UA PLC (swap for a real endpoint)
-opc_ua_client.py        acquisition + spec-check client
-test_case_generator.py  test case + run -> Markdown report
-test_cases/             written test case definitions (YAML)
-tests/                  unit tests for the evaluation logic
-reports/                generated run logs (JSON) and reports (Markdown)
-.github/workflows/      CI: unit tests + end-to-end run against the simulator
+src/opcua_test_pipeline/
+  cli.py                the opcua-test command
+  client.py             acquisition + spec check
+  report.py             test case + run -> Markdown report
+  ads.py                Beckhoff ADS acquisition
+  sim.py                simulated OPC UA PLC
+examples/               written test case definitions (YAML)
+tests/                  unit tests, live acquisition test, command-line tests
+.github/workflows/      CI: tests + end-to-end run against the simulator; release: wheel + offline bundles
 ```
 
 ## Tests
 
 ```bash
-pip install pytest
+pip install -e ".[dev]"
 pytest -q
 ```
 
@@ -140,7 +190,7 @@ session.
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - [`asyncua`](https://github.com/FreeOpcUa/opcua-asyncio) for the OPC UA
   client/server
 - `pyyaml` for test case definitions

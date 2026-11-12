@@ -1,0 +1,2 @@
+[console_scripts]
+opcua-test = opcua_test_pipeline.cli:main

@@ -87,15 +87,18 @@ def acquire(target: dict, duration: float, hz: float, watch: list = None) -> dic
                 "Check the PLC is in Run and that a route to it exists."
             )
 
+        start = time.monotonic()
         for i in range(int(duration * hz)):
-            t = round(i * interval, 3)
-            row = {"t_s": t}
+            delay = start + i * interval - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            row = {"t_s": 0.0}
             for name in variables:
                 row[name] = plc.read_by_name(name)
+            t = row["t_s"] = round(time.monotonic() - start, 3)   # when the sample was really taken
             samples.append(row)
             trace = "  ".join(f"{name}={row[name]}" for name in watch)
             print(f"t={t:6.2f}s  {trace}")
-            time.sleep(interval)
     finally:
         plc.close()
 

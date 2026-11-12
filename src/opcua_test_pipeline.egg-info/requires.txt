@@ -1,0 +1,8 @@
+asyncua<3,>=1.1
+pyyaml>=6.0
+
+[ads]
+pyads>=3.4
+
+[dev]
+pytest>=7

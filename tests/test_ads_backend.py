@@ -5,15 +5,12 @@ has no TwinCAT. What is covered is everything that can be got wrong before a
 connection is attempted, which is where the confusing failures live.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-import ads_backend  # noqa: E402
-from opc_ua_client import load_test_case  # noqa: E402
+from opcua_test_pipeline import ads as ads_backend
+from opcua_test_pipeline.client import load_test_case
 
 GOOD = {
     "protocol": "ads",
@@ -60,7 +57,7 @@ def test_empty_variable_list_is_refused():
 def test_ads_target_does_not_inherit_opcua_defaults():
     """DEFAULT_TARGET's namespace/node_path are meaningless over ADS."""
     case = load_test_case(
-        Path(__file__).parents[1] / "test_cases" / "TC-003_pickplace_cycle_time.yaml")
+        Path(__file__).parents[1] / "examples" / "TC-003_pickplace_cycle_time.yaml")
     target = case["target"]
     assert target["protocol"] == "ads"
     assert "namespace" not in target
@@ -69,7 +66,7 @@ def test_ads_target_does_not_inherit_opcua_defaults():
 
 def test_shipped_ads_case_resolves():
     case = load_test_case(
-        Path(__file__).parents[1] / "test_cases" / "TC-003_pickplace_cycle_time.yaml")
+        Path(__file__).parents[1] / "examples" / "TC-003_pickplace_cycle_time.yaml")
     net_id, port, variables = ads_backend.resolve_target(case["target"])
     assert port == 851
     assert case["variable"] in variables

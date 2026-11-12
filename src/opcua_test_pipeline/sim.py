@@ -9,7 +9,7 @@ below its 20V spec for ~2 seconds while the 80A inrush current is drawn.
 
 This exists so the rest of the pipeline (client, deviation checks, test
 report generator) can be run and demoed without needing physical hardware.
-Point opc_ua_client.py at a real PLC's endpoint instead and nothing else
+Point `opcua-test run` at a real PLC's endpoint instead and nothing else
 in the pipeline has to change.
 """
 
@@ -88,8 +88,13 @@ async def main():
             await asyncio.sleep(1.0)
 
 
-if __name__ == "__main__":
+def run(argv=None) -> int:
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nServer stopped.")
+    return 0
+
+
+if __name__ == "__main__":
+    run()

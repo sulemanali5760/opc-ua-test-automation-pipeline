@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest
+          pip install -e ".[dev]"
 
       - name: Unit tests
         run: pytest -q
@@ -29,7 +29,7 @@ jobs:
       # bundled simulator, so this proves the whole chain on every push.
       - name: Start simulated PLC
         run: |
-          python -u sim_plc_server.py > sim.log 2>&1 &
+          opcua-test sim > sim.log 2>&1 &
           echo $! > sim.pid
           # Wait on the port, not on a log line: the server prints its banner
           # before it starts listening, so the banner proves nothing.
@@ -50,11 +50,13 @@ jobs:
 
       - name: TC-001 must FAIL (coil voltage sags under inrush)
         run: |
-          python opc_ua_client.py \
-            --test-case test_cases/TC-001_contactor_coil_voltage_sag.yaml \
-            --endpoint opc.tcp://127.0.0.1:4855/plc/ --duration 14 --hz 4 --out reports/tc001.json
-          python test_case_generator.py \
-            test_cases/TC-001_contactor_coil_voltage_sag.yaml reports/tc001.json \
+          # exit code 1 = FAIL verdict, which is what this test case must produce
+          code=0
+          opcua-test run examples/TC-001_contactor_coil_voltage_sag.yaml \
+            --endpoint opc.tcp://127.0.0.1:4855/plc/ --duration 14 --hz 4 --out reports/tc001.json || code=$?
+          test "$code" -eq 1
+          opcua-test report \
+            examples/TC-001_contactor_coil_voltage_sag.yaml reports/tc001.json \
             --out reports/tc001.md
           python - <<'PY'
           import json, sys
@@ -67,11 +69,10 @@ jobs:
 
       - name: TC-002 must PASS (panel temperature stays in band)
         run: |
-          python opc_ua_client.py \
-            --test-case test_cases/TC-002_panel_temperature_band.yaml \
+          opcua-test run examples/TC-002_panel_temperature_band.yaml \
             --endpoint opc.tcp://127.0.0.1:4855/plc/ --duration 8 --hz 2 --out reports/tc002.json
-          python test_case_generator.py \
-            test_cases/TC-002_panel_temperature_band.yaml reports/tc002.json \
+          opcua-test report \
+            examples/TC-002_panel_temperature_band.yaml reports/tc002.json \
             --out reports/tc002.md
           python - <<'PY'
           import json
