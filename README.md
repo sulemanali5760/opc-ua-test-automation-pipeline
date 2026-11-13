@@ -1,6 +1,6 @@
 # OPC UA Test Automation Pipeline
 
-[![CI](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml)
+[![CI](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/opcua-test-pipeline)](https://pypi.org/project/opcua-test-pipeline/)
 
 ### ▶ [Watch it run in your browser](https://sulemanali5760.github.io/opc-ua-test-automation-pipeline/)
 
@@ -45,10 +45,8 @@ opcua-test sim   -->   opcua-test run   -->   opcua-test report
 
 ## Install
 
-With internet:
-
 ```bash
-pip install https://github.com/sulemanali5760/opc-ua-test-automation-pipeline/releases/download/v0.2.0/opcua_test_pipeline-0.2.0-py3-none-any.whl
+pip install opcua-test-pipeline
 ```
 
 Without internet (a plant PC, a commissioning laptop on the machine network): download the offline bundle
@@ -60,9 +58,9 @@ python -m pip install --no-index --find-links . opcua-test-pipeline
 ```
 
 The bundle holds this tool and every package it needs; nothing is downloaded. Each bundle is installed in a
-clean environment and started once before it is published. Python 3.11 or newer. Not on PyPI yet.
+clean environment and started once before it is published. Python 3.11 or newer.
 
-For Beckhoff ADS add `pyads` (`pip install pyads`); it is not part of the bundle because it needs the TwinCAT ADS router.
+For Beckhoff ADS: `pip install "opcua-test-pipeline[ads]"`. `pyads` is not part of the offline bundle because it needs the TwinCAT ADS router.
 
 ## Quickstart
 
